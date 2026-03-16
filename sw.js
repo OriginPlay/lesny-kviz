@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lesny-kviz-v1';
+const CACHE_NAME = 'lesny-kviz-v1.1';
 const ASSETS = [
   './',
   './index.html',
