@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌲 Lesný Kvíz - Náučný Chodník</title>
+    <!-- PREPOJENIE S MANIFESTOM PRE MOBIL -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2e7d32">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- LOKÁLNA KNIŽNICA PRE OFFLINE CHOD -->
+    <script src="js/html5-qrcode.min.js"></script>
+    <script>
+        // REGISTRÁCIA SERVICE WORKERA (OFFLINE REŽIM)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Offline režim pripravený.', reg))
+                    .catch(err => console.log('Chyba offline režimu:', err));
+            });
+        }
+    </script>
+    <style>
+        :root {
+            --primary: #2e7d32;
+            --secondary: #f1f8e9;
+            --correct: #4caf50;
+            --wrong: #f44336;
+            --accent: #8bc34a;
+            --gold: #ffc107;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 0;
+            background-color: var(--secondary);
+            color: var(--text);
+            display: flex; flex-direction: column; align-items: center;
+            padding-bottom: 50px;
+        }
+
+        header {
+            background-color: var(--primary);
+            color: white; width: 100%; padding: 15px 0;
+            text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: sticky; top: 0; z-index: 100;
+        }
+
+        .stats { display: flex; gap: 15px; margin: 15px 0; }
+        .stat-box {
+            background: white; padding: 8px 15px; border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 0.9rem; font-weight: bold;
+        }
+
+        .card {
+            width: 95%; max-width: 500px; background: white;
+            padding: 20px; border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: none; margin-top: 10px; text-align: center; box-sizing: border-box;
+        }
+
+        #home-page { display: block; }
+
+        /* KONTAJNER PRE LOGO NA POZADÍ */
+        .hero-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            border-radius: 15px;
+        }
+
+        .forest-bg {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.7);
+        }
+
+        .logo-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 160px;
+            height: 160px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.8)) drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+        }
+
+        .forest-img {
+            width: 100%; height: 200px; object-fit: cover;
+            border-radius: 15px; margin-bottom: 15px;
+        }
+
+        .intro-text { text-align: left; line-height: 1.6; margin-bottom: 25px; color: #444; font-size: 0.95rem; }
+
+        .primary-btn {
+            background-color: var(--primary); color: white; border: none;
+            padding: 18px 25px; border-radius: 15px; font-size: 1.1rem;
+            font-weight: bold; cursor: pointer; width: 100%;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15); margin-top: 10px;
+        }
+
+        .continue-btn {
+            background-color: var(--accent); color: white; border: none;
+            padding: 18px 25px; border-radius: 15px; font-size: 1.1rem;
+            font-weight: bold; cursor: pointer; width: 100%;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15); margin-top: 10px;
+            display: none;
+        }
+
+        .primary-btn:active, .continue-btn:active { transform: scale(0.98); }
+
+        #reader-container {
+            width: 90%; max-width: 450px; background: white;
+            padding: 10px; border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: none; margin-top: 10px; text-align: center;
+        }
+
+        .status-header {
+            font-size: 1.5rem; font-weight: bold; padding: 12px;
+            border-radius: 12px; margin-bottom: 15px; color: white;
+        }
+        .status-correct { background-color: var(--correct); }
+        .status-wrong { background-color: var(--wrong); }
+
+        .info-box {
+            text-align: left; line-height: 1.6; background: #f1f8e9;
+            padding: 15px; border-radius: 15px; margin: 15px 0;
+            border-left: 5px solid var(--primary);
+        }
+
+        .fact-card {
+            background: #fff3e0; border: 2px dashed #ff9800;
+            padding: 15px; border-radius: 15px; margin: 15px 0;
+            font-style: italic; color: #e65100;
+        }
+
+        .option-btn {
+            display: block; width: 100%; padding: 15px; margin: 10px 0;
+            border: 2px solid var(--primary); border-radius: 12px;
+            background: white; font-size: 1rem; font-weight: bold; cursor: pointer;
+        }
+
+        .finish-card { background: linear-gradient(135deg, #2e7d32, #8bc34a); color: white; }
+        .finish-card h2 { color: var(--gold); }
+
+        .reset-link { margin-top: 30px; color: #bbb; background: none; border: none; text-decoration: underline; font-size: 0.75rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <header><h1>🌲 Lesný chodník</h1></header>
+
+    <div class="stats">
+        <div class="stat-box">⭐ Body: <span id="points-display">0</span></div>
+        <div class="stat-box">📍 Miesta: <span id="stops-display">0</span> / 35</div>
+    </div>
+
+    <!-- 1. ÚVODNÁ STRÁNKA -->
+    <div id="home-page" class="card">
+        <div class="hero-container">
+            <img src="images/home.jpg" class="forest-bg" alt="Les">
+            <img src="images/icon.png" class="logo-overlay" alt="Logo">
+        </div>
+        <h2 id="welcome-title">Vitaj v lese, mladý objaviteľ!</h2>
+        <div class="intro-text">
+            <p>Táto aplikácia je tvojím sprievodcom na našom náučnom chodníku. Čaká ťa <b>35 zaujímavých zastávok</b> plných prekvapení.</p>
+            <p><b>Ako na to?</b><br>
+            1. Nájdi na strome tabuľku s QR kódom.<br>
+            2. Klikni na tlačidlo nižšie a kód naskenuj.<br>
+            3. Odpovedz na otázku a získaj body!</p>
+            <p>Prajeme ti príjemnú zábavu a veľa nových vedomostí o našej prírode.</p>
+        </div>
+        <button id="start-btn" class="primary-btn" onclick="startScanner()">🚀 ZAČAŤ PÁTRANIE</button>
+        <button id="continue-btn" class="continue-btn" onclick="goToPathPage()">🏃 POKRAČOVAŤ V CESTE</button>
+    </div>
+
+    <!-- 2. STRÁNKA MEDZI ZASTÁVKAMI (NA CESTE) -->
+    <div id="path-page" class="card">
+        <img src="images/path.jpg" class="forest-img" alt="Cesta">
+        <h3>Pokračuj k ďalšiemu miestu!</h3>
+        <p>Si na dobrej ceste. Pozeraj sa pozorne okolo seba, ďalší QR kód je už blízko.</p>
+        <div class="fact-card">
+            <small><b>Vedel si, že...?</b></small>
+            <p id="random-fact">V lese je vzduch oveľa čistejší ako v meste.</p>
+        </div>
+        <button class="primary-btn" onclick="startScanner()">📷 NASKENOVAŤ ĎALŠÍ KÓD</button>
+    </div>
+
+    <!-- 3. SKENER -->
+    <div id="reader-container">
+        <div id="reader"></div>
+        <button class="reset-link" style="color: var(--primary);" onclick="showPage('path-page')">Zrušiť skenovanie</button>
+    </div>
+
+    <!-- 4. KVÍZOVÁ KARTA -->
+    <div id="quiz-card" class="card">
+        <img src="images/quiz_default.jpg" class="forest-img">
+        <h3 id="quiz-stop-title" style="color: var(--primary);">Zastávka</h3>
+        <p id="question-text" style="font-size: 1.2rem; margin-bottom: 20px; font-weight: bold;"></p>
+        <div id="options-container"></div>
+    </div>
+
+    <!-- 5. INFORMAČNÁ KARTA (VÝSLEDOK) -->
+    <div id="info-card" class="card">
+        <div id="result-status" class="status-header">VÝSLEDOK</div>
+        <img id="info-img" src="" class="forest-img">
+        <h3 id="info-title">Názov miesta</h3>
+        <div id="info-content" class="info-box"></div>
+        <button id="info-continue-btn" class="primary-btn">POKRAČOVAŤ V CESTE 🚶</button>
+    </div>
+
+    <!-- 6. CIEĽOVÁ STRÁNKA (GRATULÁCIA) -->
+    <div id="finish-page" class="card finish-card">
+        <img src="images/finish.jpg" class="forest-img">
+        <h2>🎉 GRATULUJEME! 🎉</h2>
+        <p style="font-size: 1.2rem;">Úspešne si absolvoval celú trasu náučného chodníka!</p>
+        <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 15px; margin: 20px 0;">
+            <p style="margin: 5px 0;">Našiel si: <b><span id="final-stops">0</span> z 35</b> zastávok</p>
+            <p style="font-size: 1.1rem; margin: 15px 0 5px 0;">Tvoj celkový počet bodov:</p>
+            <p style="font-size: 2.5rem; font-weight: bold; color: var(--gold); margin: 0;"><span id="final-points">0</span> / 70</p>
+        </div>
+        <p>Stávaš sa čestným <b>Strážcom lesa</b>. Nezabudni chrániť prírodu aj naďalej!</p>
+        <button class="primary-btn" style="background: white; color: var(--primary);" onclick="showPage('home-page')">Späť na úvod</button>
+    </div>
+
+    <button class="reset-link" onclick="resetGame()">Vynulovať celú hru</button>
+
+    <script>
+        // --- DATA ---
+        const forestFacts = [
+            "Jeden strom vyprodukuje za rok kyslík až pre dvoch ľudí.",
+            "Huby sú pod zemou prepojené ako obrovská internetová sieť.",
+            "Mravce unesú 50-krát viac, ako sami vážia.",
+            "Sovy vedia otočiť hlavu skoro úplne dokola.",
+            "V lese rastie najviac stromov v noci.",
+            "Najstaršie stromy na svete majú viac ako 4000 rokov!",
+            "Včely v lese navštívia tisíce kvetov pre jeden pohár medu.",
+            "V lese je vzduch o polovicu čistejší ako v meste.",
+            "Stromy v lese sa vedia varovať pred nebezpečenstvom.",
+            "Veveričky vďaka zabudnutým orieškom sadia nové stromy."
+        ];
+
+        const questionsData = {
+            1: { q: "Ktorý vták v lese klope do stromu?", opt: ["Ďateľ", "Vrabec", "Sýkorka"], c: 0, title: "Ďateľ klopavý", img: "images/stop_1.jpg", info: "Ďateľ je 'lekárom stromov'. Svojím zobákom vyťahuje z kôry stromov škodlivý hmyz a zachraňuje tak les." },
+            2: { q: "Ako sa volá domček mravcov?", opt: ["Hniezdo", "Mravenisko", "Nora"], c: 1, title: "Usilovní mravci", img: "images/stop_2.jpg", info: "Mravenisko je ako obrovské podzemné mesto. Žijú v ňom tisíce mravcov, ktoré spolupracujú a udržiavajú v lese čistotu." },
+            3: { q: "Ktoré zviera má na chrbte pichliače?", opt: ["Zajac", "Ježko", "Líška"], c: 1, title: "Pichľavý ježko", img: "images/stop_3.jpg", info: "Ježko má až 5 000 pichliačov! Keď sa zľakne, stočí sa do klbka, aby ho dravce nemohli uloviť." },
+            4: { q: "Čo si veverička schováva na zimu?", opt: ["Oriešky a semená", "Lístie", "Kamienky"], c: 0, title: "Veverička lesná", img: "images/placeholder.jpg", info: "Veveričky si robia zásoby, ale často zabudnú, kam ich dali. Vďaka tomu z ich orieškov vyrastú nové stromy!" },
+            5: { q: "Akej farby je kožuch líšky?", opt: ["Sivý", "Ryšavý", "Biely"], c: 1, title: "Líška hrdzavá", img: "images/placeholder.jpg", info: "Líška je veľmi prefíkaná a má výborný sluch. Dokáže počuť myš aj pod hlbokým snehom." },
+            6: { q: "Ktorý strom má v zime ihličie a neopadá?", opt: ["Dub", "Smrek", "Breza"], c: 1, title: "Ihličnaté stromy", img: "images/placeholder.jpg", info: "Ihličnaté stromy ako smrek alebo jedľa sú zelené po celý rok. Ich listy sú premenené na pichľavé ihličie." },
+            7: { q: "Ako voláme mláďa diviaka?", opt: ["Teliatko", "Pásikavé prasiatko", "Mačiatko"], c: 1, title: "Diviak lesný", img: "images/placeholder.jpg", info: "Diviaky majú veľmi citlivý rypák, ktorým ryjú v zemi a hľadajú korienky alebo žalude." },
+            8: { q: "Kde spí medveď počas dlhej zimy?", opt: ["V posteli", "V brlohu", "Na strome"], c: 1, title: "Medveď hnedý", img: "images/placeholder.jpg", info: "Medveď sa na zimu poriadne naje a potom upadne do zimného spánku, ktorý trvá až do jari." },
+            9: { q: "Ktoré zviera má na hlave parohy?", opt: ["Diviak", "Jeleň", "Vlk"], c: 1, title: "Jeleň lesný", img: "images/placeholder.jpg", info: "Parohy nosia len samce. Každý rok im odpadnú a narastú im nové, ešte väčšie a krajšie." },
+            10: { q: "Ktorý vták vidí výborne v tme a v noci húka?", opt: ["Sova", "Vrana", "Lastovička"], c: 0, title: "Múdra sova", img: "images/placeholder.jpg", info: "Sovy vedia otočiť hlavu skoro úplne dokola a majú také mäkké krídla, že pri lietaní ich vôbec nepočuť." },
+            11: { q: "Ako sa volá plod duba?", opt: ["Gaštan", "Žaluď", "Bukvica"], c: 1, title: "Mohutný dub", img: "images/placeholder.jpg", info: "Duby sú veľmi silné stromy, ktoré môžu žiť stovky rokov. Na ich žaludoch si radi pochutnajú diviaky." },
+            12: { q: "Čo vyrábajú včielky v lese?", opt: ["Limonádu", "Med", "Čokoládu"], c: 1, title: "Včely a opeľovanie", img: "images/placeholder.jpg", info: "Včely lietajú z kvetu na kvet a zbierajú sladký nektár. Bez včielok by v lese nerástlo toľko pekných kvetov a plodov." },
+            13: { q: "Ktorý strom má bielu kôru?", opt: ["Borovica", "Breza", "Buk"], c: 1, title: "Štíhla breza", img: "images/placeholder.jpg", info: "Breza sa dá v lese ľahko spoznať podľa bielej kôry. Je to jeden z prvých stromov, ktoré na jar začnú rásť." },
+            14: { q: "Čo nesmieme v lese robiť?", opt: ["Kráčať", "Kričať a zahadzovať odpadky", "Smiať sa"], c: 1, title: "Správanie v lese", img: "images/placeholder.jpg", info: "V lese sme len hostia. Musíme byť ticho, aby sme nevyplašili zvieratká, a vždy si vziať odpadky so sebou." },
+            15: { q: "Ako sa volá domček včiel v lese?", opt: ["Hniezdo", "Úľ alebo bútľavina", "Nora"], c: 1, title: "Lesné včely", img: "images/placeholder.jpg", info: "Divoké včely si radi stavajú svoje príbytky v dutinách starých stromov, ktoré voláme bútľaviny." },
+            16: { q: "Ktoré zviera si nosí svoj domček na chrbte?", opt: ["Slimák", "Zajac", "Žaba"], c: 0, title: "Slimák s domčekom", img: "images/placeholder.jpg", info: "Ulita chráni slimáka pred slnkom aj pred nepriateľmi. Keď sa slimák cíti v nebezpečenstve, celý sa do nej schová." },
+            17: { q: "Ktorá huba je červená s bielymi bodkami a je jedovatá?", opt: ["Dubák", "Muchotrávka", "Kuriatko"], c: 1, title: "Muchotrávka červená", img: "images/placeholder.jpg", info: "Aj keď je krásna, nikdy ju nechytaj! V lese však má svoje miesto – niektoré zvieratká ju používajú ako liek." },
+            18: { q: "Čo padá zo stromov na jeseň?", opt: ["Sneh", "Farebné lístie", "Kvety"], c: 1, title: "Farebná jeseň", img: "images/placeholder.jpg", info: "Listnaté stromy sa pred zimou zbavujú listov, aby ušetrili energiu a prežili mrazy." },
+            19: { q: "Ako sa volá človek, ktorý sa stará o les?", opt: ["Učiteľ", "Lesník", "Kozmonaut"], c: 1, title: "Pán lesník", img: "images/placeholder.jpg", info: "Lesník pozná každý strom a každé zvieratko. Pomáha lesu rásť a chráni ho pred chorobami a škodcami." },
+            20: { q: "Ktorá časť stromu pije vodu zo zeme?", opt: ["Konáre", "Korene", "Listy"], c: 1, title: "Korene stromov", img: "images/placeholder.jpg", info: "Korene sú ako neviditeľné slamky. Ťahajú vodu hlboko zo zeme a zároveň držia strom pevne, aby ho neodfúkol vietor." },
+            21: { q: "Čo robí vlk, keď volá na svojich kamarátov?", opt: ["Spieva", "Vyje", "Mraučí"], c: 1, title: "Vlk dravý", img: "images/placeholder.jpg", info: "Vlci žijú v rodinách, ktoré voláme svorky. Vyťím si oznamujú, kde sa nachádzajú a či je všetko v poriadku." },
+            22: { q: "Ako sa volá najväčší vták v našich lesoch?", opt: ["Orol", "Sýkorka", "Vrabec"], c: 0, title: "Orol skalný", img: "images/placeholder.jpg", info: "Orol má obrovské krídla a dokáže vyletieť veľmi vysoko. Vidí tak dobre, že zbadá malú myšku aj z veľkej diaľky." },
+            23: { q: "Ktoré zviera má dlhé uši a vie rýchlo skákať?", opt: ["Slimák", "Zajac", "Korytnačka"], c: 1, title: "Zajac poľný", img: "images/placeholder.jpg", info: "Zajac má dlhé uši nielen na počúvanie, ale aj na to, aby sa v lete ochladzoval. Je to skutočný šprintér lesa." },
+            24: { q: "Čo jedia lesné srnky najradšej?", opt: ["Čokoládu", "Trávu a bylinky", "Mäso"], c: 1, title: "Srna hôrna", img: "images/placeholder.jpg", info: "Srnky sú veľmi plaché. Pasú sa na lúkach najmä skoro ráno alebo večer, keď je v lese ticho." },
+            25: { q: "Ktorý strom má plody v šiškách?", opt: ["Jabloň", "Borovica", "Lipa"], c: 1, title: "Šišky a semená", img: "images/placeholder.jpg", info: "V šiškách sú ukryté malé semienka. Keď šiška na slnku uschne, otvorí sa a semienka vypadnú von, aby vyrástli nové stromčeky." },
+            26: { q: "Akej farby sú zrelé lesné jahody?", opt: ["Modré", "Červené", "Zelené"], c: 1, title: "Lesné jahody", img: "images/placeholder.jpg", info: "Sú síce menšie ako tie zo záhrady, ale voňajú a chutia oveľa sladšie. Majú radi slnečné miesta pri chodníkoch." },
+            27: { q: "Ktorý hmyz má krásne farebné krídla?", opt: ["Mucha", "Motýľ", "Mravec"], c: 1, title: "Motýle v lese", img: "images/placeholder.jpg", info: "Motýle sú ako lietajúce kvety. Ich farebné krídla im niekedy pomáhajú schovať sa pred hladnými vtáčikmi." },
+            28: { q: "Čo pijú zvieratká v lese, keď sú smädné?", opt: ["Kofolu", "Vodu z potôčika", "Mlieko"], c: 1, title: "Voda v lese", img: "images/placeholder.jpg", info: "Čistá voda je pre les životne dôležitá. Potôčiky sú napájadlom pre všetky zvieratká od mravca až po medveďa." },
+            29: { q: "Ktoré zviera v noci loví a má ryšavý chvost?", opt: ["Líška", "Veverička", "Vlk"], c: 0, title: "Líška - nočný lovec", img: "images/placeholder.jpg", info: "Líšky sú najaktívnejšie za súmraku a v noci. Ich huňatý chvost im pomáha udržiavať rovnováhu pri behu." },
+            30: { q: "Ako sa volá domček pavúka?", opt: ["Nora", "Pavučina", "Hniezdo"], c: 1, title: "Pavúk a jeho sieť", img: "images/placeholder.jpg", info: "Pavúky tkajú svoje siete z veľmi pevného vlákna. Slúžia im ako pasca na hmyz, ktorým sa živia." },
+            31: { q: "Ktorý malý vtáčik má žlté bruško a radi ho kŕmime v zime?", opt: ["Sýkorka", "Havran", "Bažant"], c: 0, title: "Sýkorka bielolíca", img: "images/placeholder.jpg", info: "Sýkorky sú veľmi užitočné, lebo v lete zjedia obrovské množstvo hmyzu a húseníc, ktoré by mohli ublížiť stromom." },
+            32: { q: "Čo sa stane so starým padnutým stromom v lese?", opt: ["Zmizne", "Stane sa domovom pre chrobáčiky", "Nič"], c: 1, title: "Život starého stromu", img: "images/placeholder.jpg", info: "V lese nič nevyjde nazmar. Starý peň je plný chrobáčikov, machu a húb, ktoré ho postupne premenia na novú, výživnú zem." },
+            33: { q: "Ktorý strom má plody volané bukvice?", opt: ["Dub", "Buk", "Jedľa"], c: 1, title: "Vznešený buk", img: "images/placeholder.jpg", info: "Buk má hladkú sivú kôru a jeho bukvice sú obľúbenou pochúťkou pre lesné myšky aj veveričky." },
+            34: { q: "Prečo musíme v lese chodiť po vyznačených chodníkoch?", opt: ["Aby sme nezablúdili a neničili prírodu", "Lebo je tam lepšia cesta", "Aby sme sa neunavili"], c: 0, title: "Lesné chodníčky", img: "images/placeholder.jpg", info: "Keď beháme mimo chodníkov, môžeme pošliapať vzácne rastlinky alebo vyplašiť hniezdiace vtáčiky." },
+            35: { q: "Si na konci trasy! Čo urobíš so svojimi vedomosťami o lese?", opt: ["Zabudnem ich", "Budem chrániť prírodu", "Nič"], c: 1, title: "Mladý strážca lesa", img: "images/placeholder.jpg", info: "Gratulujeme! Teraz už vieš o lese naozaj veľa. Povedz o tom aj svojim kamarátom a rodičom, aby sme les spoločne chránili." }
+        };
+
+        // --- STAV ---
+        let points = parseInt(localStorage.getItem('lesny_body')) || 0;
+        let visitedStops = JSON.parse(localStorage.getItem('lesny_zastavky')) || [];
+        updateUI();
+
+        let html5QrcodeScanner = null;
+
+        function startScanner() {
+            showPage('reader-container');
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            }
+            html5QrcodeScanner.render(onScanSuccess);
+        }
+
+        function onScanSuccess(decodedText) {
+            const match = decodedText.toLowerCase().replace(/\s/g, '').match(/zastavka(\d+)/);
+            if (!match) return;
+            const stopNum = parseInt(match[1]);
+            if (visitedStops.includes(stopNum)) { alert("Tu si už bol!"); return; }
+            const maxVisited = visitedStops.length > 0 ? Math.max(...visitedStops) : 0;
+            if (stopNum > maxVisited + 1) {
+                if (!confirm(`Pozor! Vynechal si zastávku č. ${maxVisited+1}. Pokračovať?`)) return;
+            }
+            html5QrcodeScanner.clear();
+            showQuiz(stopNum);
+        }
+
+        function showQuiz(num) {
+            const data = questionsData[num];
+            showPage('quiz-card');
+            document.getElementById('quiz-stop-title').innerText = "Zastávka č. " + num;
+            document.getElementById('question-text').innerText = data.q;
+            const container = document.getElementById('options-container');
+            container.innerHTML = "";
+            data.opt.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt;
+                btn.onclick = () => finishQuiz(num, index === data.c);
+                container.appendChild(btn);
+            });
+        }
+
+        function finishQuiz(num, isCorrect) {
+            console.log("Dokončujem kvíz pre zastávku č.:", num);
+            
+            // 1 bod za príchod, +1 ak je správne
+            points += 1; 
+            if (isCorrect) points += 1;
+            
+            if (!visitedStops.includes(num)) {
+                visitedStops.push(num);
+            }
+            
+            saveState(); 
+            updateUI();
+
+            const data = questionsData[num];
+            showPage('info-card');
+            
+            const status = document.getElementById('result-status');
+            status.innerText = isCorrect ? "✅ SPRÁVNE!" : "❌ NESPRÁVNE";
+            status.className = "status-header " + (isCorrect ? "status-correct" : "status-wrong");
+            
+            document.getElementById('info-title').innerText = data.title;
+            document.getElementById('info-img').src = data.img;
+            document.getElementById('info-content').innerHTML = `<p><b>Odpoveď:</b> ${data.opt[data.c]}</p><hr><p>${data.info}</p>`;
+            
+            // LOGIKA TLAČIDLA
+            const btn = document.getElementById('info-continue-btn');
+            
+            if (parseInt(num) === 35) {
+                console.log("Detekovaná zastávka 35 - nastavujem cieľové tlačidlo");
+                btn.innerText = "DOKONČIŤ TRASU 🏁";
+                btn.onclick = function() {
+                    console.log("Kliknuté na DOKONČIŤ TRASU");
+                    showFinishPage();
+                };
+            } else {
+                btn.innerText = "POKRAČOVAŤ V CESTE 🚶";
+                btn.onclick = function() {
+                    goToPathPage();
+                };
+            }
+        }
+
+        function showFinishPage() {
+            console.log("Spúšťam showFinishPage");
+            document.getElementById('final-points').innerText = points;
+            document.getElementById('final-stops').innerText = visitedStops.length;
+            showPage('finish-page');
+        }
+
+        function goToPathPage() {
+            const randomFact = forestFacts[Math.floor(Math.random() * forestFacts.length)];
+            document.getElementById('random-fact').innerText = randomFact;
+            showPage('path-page');
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.card, #reader-container').forEach(p => p.style.display = 'none');
+            const target = document.getElementById(pageId);
+            if(target) target.style.display = 'block';
+            
+            const startBtn = document.getElementById('start-btn');
+            const continueBtn = document.getElementById('continue-btn');
+            
+            if (pageId === 'home-page') {
+                const finished = visitedStops.includes(35);
+                
+                if (finished) {
+                    document.getElementById('welcome-title').innerText = "Výborne, Strážca lesa!";
+                    startBtn.style.display = 'none';
+                    continueBtn.innerText = "POZRIEŤ SI VÝSLEDOK 🏆";
+                    // Resetujeme a nastavíme akciu
+                    const newContinueBtn = continueBtn.cloneNode(true);
+                    continueBtn.parentNode.replaceChild(newContinueBtn, continueBtn);
+                    newContinueBtn.addEventListener('click', showFinishPage);
+                    newContinueBtn.style.display = 'block';
+                } else if (visitedStops.length > 0) {
+                    startBtn.style.display = 'none';
+                    continueBtn.innerText = "🏃 POKRAČOVAŤ V CESTE";
+                    const newContinueBtn = continueBtn.cloneNode(true);
+                    continueBtn.parentNode.replaceChild(newContinueBtn, continueBtn);
+                    newContinueBtn.addEventListener('click', goToPathPage);
+                    newContinueBtn.style.display = 'block';
+                } else {
+                    startBtn.style.display = 'block';
+                    continueBtn.style.display = 'none';
+                }
+            } else {
+                continueBtn.style.display = 'none';
+            }
+
+            if (pageId !== 'reader-container' && html5QrcodeScanner) {
+                try { html5QrcodeScanner.clear(); } catch(e) {}
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('points-display').innerText = points;
+            document.getElementById('stops-display').innerText = visitedStops.length;
+        }
+
+        function saveState() {
+            localStorage.setItem('lesny_body', points);
+            localStorage.setItem('lesny_zastavky', JSON.stringify(visitedStops));
+        }
+
+        function resetGame() {
+            if (confirm("Naozaj vymazať všetko a začať od nuly?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
